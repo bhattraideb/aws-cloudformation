@@ -1,0 +1,51 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: Get SSM parameter by Lambda
+Resources:
+  MyLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      Policies:
+        - PolicyName: root
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: ['ssm:GetParameter', 's3:PutObject']
+                Resource: ['arn:aws:ssm:us-east-1:XXXXXXXXXXXXXX:parameter/UserName', 'arn:aws:s3:::cloud-formation-dxc-test/*']
+
+  MyLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Role: !GetAtt MyLambdaRole.Arn
+      Runtime: python3.10
+      Handler: index.lambda_handler
+      Code:
+        ZipFile: |
+          import boto3, os, json
+          ssm = boto3.client('ssm')
+          s3 = boto3.client('s3') 
+          file_name = 'parameters.txt' 
+          bucket_name = 'cloud-formation-dxc-test' 
+          
+          def lambda_handler(event, context):
+            parameter = ssm.get_parameter(Name='UserName')
+            key = parameter['Parameter']['Name']
+            value = parameter['Parameter']['Value']
+            file_content = f"{key}: {value}"
+            s3.put_object(Body=file_content, Bucket=bucket_name, Key=file_name) 
+            
+            return { 
+                'statusCode': 200, 
+                'body': 'Parameter file has been generated and uploaded successfully.' 
+            } 
+          
